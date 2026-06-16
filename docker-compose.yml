@@ -1,0 +1,64 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: RH_chatbot-backend
+    volumes:
+      - /home/paulvidouze/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8002:8002"
+    environment:
+      - OLLAMA_HOST=http://10.75.12.5:11434
+      - CONTEXT_SIZE=30000
+      - TEMPERATURE=0.4
+      - DEFAULT_LLM=gemma4:e4b
+      - TRANSFORMERS_OFFLINE=1
+      - HF_DATASETS_OFFLINE=1
+      - HF_HOME=/root/.cache/huggingface
+      - EMBEDDING_MODEL=embeddinggemma:latest
+      # ← ChromaDB joignable via son nom de service sur chroma_net
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - default
+      - chroma_net   # ← rejoint le réseau ChromaDB
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: RH_chatbot-frontend
+    ports:
+      - "8503:8501"
+    environment:
+      # ← nom de service Docker, pas localhost
+      - API_URL=http://backend:8000
+      - STREAMLIT_BROWSER_SERVER_ADDRESS=10.75.12.5
+      - CONTEXT_SIZE=30000
+      - TEMPERATURE=0.4
+      - DEFAULT_LLM=gemma4:e4b
+      - DEFAULT_VLM=gemma4:e4b
+      - PAYLOAD_DEBUG=hide
+    depends_on:
+      - backend
+    networks:
+      - default
+
+networks:
+  default: {}
+  chroma_net:
+    external: true   # ← réseau déclaré dans l'autre docker-compose
