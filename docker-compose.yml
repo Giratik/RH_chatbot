@@ -8,7 +8,7 @@ services:
     volumes:
       - /home/paulvidouze/.cache/huggingface:/root/.cache/huggingface
     ports:
-      - "8002:8002"
+      - "8002:8000"
     environment:
       - OLLAMA_HOST=http://10.75.12.5:11434
       - CONTEXT_SIZE=30000
@@ -45,7 +45,6 @@ services:
     ports:
       - "8503:8501"
     environment:
-      # ← nom de service Docker, pas localhost
       - API_URL=http://backend:8000
       - STREAMLIT_BROWSER_SERVER_ADDRESS=10.75.12.5
       - CONTEXT_SIZE=30000
@@ -53,6 +52,11 @@ services:
       - DEFAULT_LLM=gemma4:e4b
       - DEFAULT_VLM=gemma4:e4b
       - PAYLOAD_DEBUG=hide
+
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=5000
+      - STREAMLIT_BROWSER_SERVER_ADDRESS=10.75.12.5
+      - STREAMLIT_BROWSER_SERVER_PORT=8503
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
     depends_on:
       - backend
     networks:

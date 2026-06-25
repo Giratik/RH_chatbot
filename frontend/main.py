@@ -17,54 +17,81 @@ Différence avec Main.py :
 - Main.py est généraliste pour l'analyse de fichiers et demandes variées
 - Ce chatbot nécessite une configuration RAG spécifique
 """
+LOGO_PATH = "ressource/Eau_de_Paris_bleu.svg.png"
+
+
+# frontend/main.py
 
 import streamlit as st
+import os
+import datetime
 from plugins.Styles import render_styles
 from plugins.Sidebar import render_save_chat
 from plugins.Chat import render_chat
+from pages.Configuration import set_rag_stats
 
 # ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(page_title="RAG Integrated", page_icon="🤖", layout="wide")
 
-# Injection des styles CSS globaux
+if os.path.exists(LOGO_PATH):
+    st.logo(LOGO_PATH)
+
 render_styles()
+
+# ─── FONCTION D'INITIALISATION ────────────────────────────────────────────────
+def init_session_state():
+    """S'assure que les variables de config sont présentes même si l'utilisateur
+    ne visite pas la page de configuration en premier."""
+    
+    if "system_prompt" not in st.session_state:
+        mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", 
+                   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+        now = datetime.datetime.now()
+        date_actuelle = f"{mois_fr[now.month - 1]} {now.year}"
+        
+        st.session_state.system_prompt = f"""Tu es un assistant IA expert, concis et professionnel.
+Ta mission est de répondre à la question de l'utilisateur en utilisant UNIQUEMENT le contexte fourni ci-dessous.
+Si la réponse n'est pas dans le contexte, dis poliment "Je ne trouve pas cette information dans les documents fournis", et n'invente rien.
+Réponds en français.
+
+RÈGLES IMPORTANTES :
+- Nous sommes en {date_actuelle}.
+- Les dates des documents sont indiquées entre crochets [Document du YYYY-MM-DD].
+- Si plusieurs documents traitent le même sujet avec des dates différentes, PRIORISE TOUJOURS le document le plus récent et considère les autres comme caduques."""
+        st.session_state.default_system_prompt = f"""Tu es un assistant IA expert, concis et professionnel.
+Ta mission est de répondre à la question de l'utilisateur en utilisant UNIQUEMENT le contexte fourni ci-dessous.
+Si la réponse n'est pas dans le contexte, dis poliment "Je ne trouve pas cette information dans les documents fournis", et n'invente rien.
+Réponds en français.
+
+RÈGLES IMPORTANTES :
+- Nous sommes en {date_actuelle}.
+- Les dates des documents sont indiquées entre crochets [Document du YYYY-MM-DD].
+- Si plusieurs documents traitent le même sujet avec des dates différentes, PRIORISE TOUJOURS le document le plus récent et considère les autres comme caduques."""
+
+    if "rag_config" not in st.session_state:
+        st.session_state.rag_config = set_rag_stats()
+
+
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 def main():
-    # Initialisation de l'état de session pour le chat RH
+    # Initialisation de l'état de session pour le chat et la config
+    init_session_state()
+    
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Configuration RAG spécifique pour les RH 
-    # Note : Cette configuration pourrait être externalisée dans un fichier de config
-    cfg = {
-        "collection": "dummy_rh",  # Collection ChromaDB contenant les documents RH
-        "model": "gemma4:e4b",    # Modèle LLM utilisé pour les réponses RH
-        "doc_date_filter": "",
-        "n_results": 250,          # Nombre de chunks à récupérer
-        "seuil": 0.6,              # Seuil de distance pour la pertinence
-        "use_hyde": True,          # Utilisation de l'hypothèse de réponse
-        "use_expansion": True,     # Expansion de requête avec synonymes
-        "alpha": 0.5,              # Équilibre entre recherche vectorielle et BM25
-    }
+    # On récupère le cfg dynamiquement depuis le session_state
+    cfg = st.session_state.rag_config
 
-    # Configuration alternative : utiliser la sidebar pour la configuration RAG
-    # cfg = render_sidebar()  # Décommenter pour permettre la configuration utilisateur
-
-    # Affichage du titre
     st.title("Chatbot spécialisé question RH")
 
-    # Rendu du composant de chat avec pipeline RAG
-    # Ce composant gère :
-    # - L'historique des messages
-    # - La saisie utilisateur
-    # - La recherche RAG dans les documents RH
-    # - L'affichage des sources et citations
-    render_chat(cfg)
+    # Il faudra t'assurer que render_chat() prend aussi en compte le SYSTEM_PROMPT
+    # Par exemple, en le passant dans le dictionnaire cfg ou en argument supplémentaire :
+    # render_chat(cfg, st.session_state.system_prompt)
+    render_chat(cfg) 
 
-    # Composant de sauvegarde/restauration des conversations
-    # Identique à celui utilisé dans Main.py pour la cohérence
     render_save_chat()
 
 if __name__ == "__main__":
