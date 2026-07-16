@@ -11,7 +11,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 from services.ollama_client import inferring_ollama
 
-from core.config import CHROMA_HOST, CHROMA_PORT, OLLAMA_HOST, EMBEDDING_MODEL
+from core.config import CHROMA_HOST, CHROMA_PORT, OLLAMA_HOST, EMBEDDING_MODEL, CONTEXT_SIZE
 from typing import Any
 
 
@@ -54,6 +54,7 @@ class SimpleOllamaClient:
                 temperature=temperature,
                 stream=True,
                 stats_dict=dummy_stats,
+                context_size=CONTEXT_SIZE,
             )
         else:
             # Collect the full response (non‑streaming) and mimic the dict format.
@@ -64,6 +65,7 @@ class SimpleOllamaClient:
                     temperature=temperature,
                     stream=True,
                     stats_dict=dummy_stats,
+                    context_size=CONTEXT_SIZE,
                 )
             )
             return {"message": {"content": full}}

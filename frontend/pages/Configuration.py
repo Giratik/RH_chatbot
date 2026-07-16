@@ -43,7 +43,7 @@ def set_rag_stats():
         # Recherche regex : on cherche "RH" (insensible à la casse grâce à re.IGNORECASE)
         # c'est-à-dire que ça matchera "rh", "RH", "documents_RH", "Rh_test", etc.
         collection_rh = next(
-            (c for c in collections_disponibles if re.search(r'RH', c, re.IGNORECASE)), 
+            (c for c in collections_disponibles if re.search(r'docs_rh', c, re.IGNORECASE)), 
             None # Valeur par défaut si rien n'est trouvé
         )
         
