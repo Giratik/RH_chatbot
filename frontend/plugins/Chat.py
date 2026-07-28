@@ -1,24 +1,5 @@
-"""
-plugins/Chat.py - Composant de Chat RAG Spécialisé RH
-────────────────────────────────────────────────────
-Rôle : Fournit l'interface de chat avec pipeline RAG pour les questions RH
+#plugins/Chat.py 
 
-Ce composant est spécialisé pour :
-- Le chatbot RH (Chatbot_RH.py)
-- L'accès à la base de connaissances RH 
-- La recherche hybride dans les documents RH
-- L'affichage des sources et citations
-
-Architecture :
-- Utilisé uniquement par Chatbot_RH.py (contrairement à general_purpose_chat_ui.py)
-- Dépend de APIclient.py pour la communication avec le backend RAG
-- Fournit des fonctionnalités spécifiques RH (citations, sources, etc.)
-
-Différence avec general_purpose_chat_ui.py :
-- Ce fichier est spécialisé pour les questions RH avec accès RAG
-- general_purpose_chat_ui.py gère les demandes générales et l'analyse de fichiers
-- Ce composant nécessite une configuration RAG spécifique
-"""
 
 import re
 import streamlit as st
