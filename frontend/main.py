@@ -1,24 +1,3 @@
-"""
-Chatbot_RH.py - Interface spécialisée RH
-──────────────────────────────────────────────────────────
-Rôle : Chatbot spécialisé avec accès à la base de connaissances RH
-- Répond aux questions spécifiques sur les RH
-- Utilise le pipeline RAG pour la recherche dans les documents RH
-- Fournit des citations précises des sources RH
-- Configuration RAG spécialisée
-
-Architecture :
-- Utilise Chat.py pour le composant de chat avec RAG
-- Intègre Sidebar.py pour la sauvegarde des conversations
-- Dépend des composants RAG et de la base de connaissances RH
-
-Différence avec Main.py :
-- Ce fichier est spécialisé pour les questions RH avec accès RAG
-- Main.py est généraliste pour l'analyse de fichiers et demandes variées
-- Ce chatbot nécessite une configuration RAG spécifique
-"""
-
-
 # frontend/main.py
 
 import streamlit as st
