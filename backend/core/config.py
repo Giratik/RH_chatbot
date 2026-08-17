@@ -10,8 +10,8 @@ import os
 
 CONTEXT_SIZE = int(os.environ.get("CONTEXT_SIZE", 22000))
 URL_OLLAMA = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-CHROMA_HOST = os.environ.get("CHROMA_HOST", "localhost")
-CHROMA_PORT = int(os.environ.get("CHROMA_PORT", 8100))
+QDRANT_HOST = os.environ.get("QDRANT_HOST", "localhost")
+QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "embeddinggemma:latest")
 
@@ -23,7 +23,7 @@ Si la réponse n'est pas dans le contexte, dis poliment "Je ne trouve pas cette 
 Réponds en français.
 
 RÈGLES IMPORTANTES :
-- Nous sommes en juin 2026.
+- Nous sommes en août 2026.
 - Les dates des documents sont indiquées entre crochets [Document du YYYY-MM-DD].
 - Si plusieurs documents traitent le même sujet avec des dates différentes, PRIORISE TOUJOURS le document le plus récent et considère les autres comme caduques.
 """

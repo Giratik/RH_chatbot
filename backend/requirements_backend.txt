@@ -22,7 +22,7 @@ python-pptx
 pdfplumber==0.11.9
 
 # RAG & NLP
-chromadb==0.5.3
+qdrant-client
 rank-bm25>=0.2.2
 langchain
 langchain-community

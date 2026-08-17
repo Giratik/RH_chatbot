@@ -53,11 +53,13 @@ def list_doc_dates(collection_name: str) -> List[str]:
 def rewrite_query(
     query: str,
     model: str,
+    context_size: int,
     chat_history: List[Dict[str, str]],
 ) -> str:
     data = _post("/rag/rewrite", {
         "query": query,
         "model": model,
+        "context_size": context_size,
         "chat_history": chat_history,
     })
     return data["rewritten_query"]
@@ -69,6 +71,7 @@ def retrieve_context_hybrid(
     collection_name: str,
     query: str,
     model: str,
+    context_size: int,
     n_results: int = 5,
     seuil: float = 0.5,
     alpha: float = 0.5,
@@ -80,6 +83,7 @@ def retrieve_context_hybrid(
         "collection_name": collection_name,
         "query": query,
         "model": model,
+        "context_size": context_size,
         "n_results": n_results,
         "seuil": seuil,
         "alpha": alpha,
@@ -96,12 +100,14 @@ def stream_answer(
     system_prompt: str,
     query: str,
     model: str,
+    context_size: int,
     chat_history: Optional[List[Dict[str, str]]] = None,
 ) -> Generator[str, None, None]:
     payload = {
         "system_prompt": system_prompt,
         "query": query,
         "model": model,
+        "context_size": context_size,
         "chat_history": chat_history or [],
     }
     with requests.post(

@@ -52,6 +52,7 @@ def main():
     page_chat = st.Page("pages/Chatbot_RH.py", title="Chat RH", icon="💬", default=True)
     page_changelog = st.Page("pages/Changelog.py", title="Changelog", icon="📝")
     page_config = st.Page("pages/Configuration.py", title="Configuration", icon="⚙️")
+    page_test = st.Page("pages/test_retrieval.py", title="test rag")
 
     # Construction dynamique de la navigation
     pages_visibles = [page_chat]
@@ -60,6 +61,7 @@ def main():
     if st.session_state.is_dev == "yes":
         pages_visibles.append(page_changelog)
         pages_visibles.append(page_config)
+        pages_visibles.append(page_test)
 
     # Exécution de la navigation
     pg = st.navigation(pages_visibles)

@@ -4,6 +4,8 @@
 import re
 import streamlit as st
 from plugins import APIclient as api
+import os
+CONTEXT_SIZE = int(os.environ.get("CONTEXT_SIZE", 22000))
 
 def _render_sources(citations: list[str]) -> None:
     """
@@ -50,7 +52,7 @@ def render_chat(cfg: dict) -> None:
             if msg.get("citations"):
                 _render_sources(msg["citations"])
 
-    if not (prompt := st.chat_input("Posez une question sur vos documents...")):
+    if not (prompt := st.chat_input("Posez votre question ici")):
         return
 
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -69,6 +71,7 @@ def render_chat(cfg: dict) -> None:
             standalone_query = api.rewrite_query(
                 query=prompt,
                 model=cfg["model"],
+                context_size=CONTEXT_SIZE,
                 chat_history=history_for_rewrite,
             )
         except Exception as e:
@@ -93,6 +96,7 @@ def render_chat(cfg: dict) -> None:
                     collection_name=cfg["collection"],
                     query=standalone_query,
                     model=cfg["model"],
+                    context_size=CONTEXT_SIZE,
                     n_results=cfg["n_results"],
                     seuil=cfg["seuil"],
                     alpha=cfg["alpha"],
@@ -128,6 +132,7 @@ def render_chat(cfg: dict) -> None:
                 system_prompt=system_prompt,
                 query=prompt,
                 model=cfg["model"],
+                context_size=CONTEXT_SIZE,
                 chat_history=history_for_rewrite,
             ):
                 if token.startswith("ERROR:"):
