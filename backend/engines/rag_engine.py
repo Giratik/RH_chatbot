@@ -415,7 +415,7 @@ def rewrite_query(
             messages=[{"role": "user", "content": prompt}],
             options={"num_ctx": context_size, "temperature": 0.0},
         )
-        rewritten = resp["message"]["content"].strip().strip("«»\"'")
+        rewritten = resp.message.content.strip().strip("«»\"'")
         return rewritten if len(rewritten) > 5 else query
     except Exception:
         return query

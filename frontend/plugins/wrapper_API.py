@@ -1,5 +1,5 @@
 """
-plugins/APIclient.py
+plugins/wrapper_API.py
 ────────────────
 Wrapper HTTP vers l'API FastAPI RAG.
 Chaque fonction reproduit la signature attendue par les modules ui/
@@ -33,8 +33,19 @@ def _post(path: str, payload: dict, **kwargs) -> Any:
  
 # ─── Collections & modèles ────────────────────────────────────────────────────
  
-def list_collections() -> List[str]:
+#def list_collections() -> List[str]:
+#    return _get("/rag/collections")["collections"]
+
+def list_collections_qdrant() -> List[str]:
     return _get("/rag/collections")["collections"]
+
+def get_registry_collection():
+   try:
+       registry_entries = _get("/rag/registry_get")
+       return registry_entries # => bonne réponse
+   except Exception as e:
+       print(f"Erreur registry : {e}")
+       return []
  
  
 def list_generative_models() -> List[str]:

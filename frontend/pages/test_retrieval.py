@@ -9,7 +9,10 @@ CONTEXT_SIZE = int(os.environ.get("CONTEXT_SIZE", 22000))
 DEFAULT_API_URL = f"{BASE_URL}/rag"
 DEFAULT_MODEL = "gemma4:e4b"
 
-st.set_page_config(page_title="Testeur de Retrieval - Chatbot EDP", page_icon="🔍", layout="wide")
+from plugins.wrapper_API import get_registry_collection # => /rag/registry_get
+
+st.set_page_config(page_title="Testeur de Retrieval", page_icon="🔍", layout="wide")
+
 
 st.title("🔍 Testeur de Retrieval Qdrant")
 st.markdown("Interface de débogage pour tester la récupération hybride (Vectoriel + BM25) du backend FastAPI.")
@@ -25,12 +28,10 @@ with st.sidebar:
     st.header("🗂️ Collections")
     if st.button("🔄 Charger les collections"):
         try:
-            res = requests.get(f"{api_url}/collections")
-            if res.status_code == 200:
-                st.session_state["collections"] = res.json().get("collections", [])
-                st.success("Collections chargées !")
-            else:
-                st.error(f"Erreur HTTP {res.status_code}")
+            data = get_registry_collection()  # => GET /rag/registry_get
+            # retourne {"registry": [{"nom": ..., "description": ...}, ...]}
+            st.session_state["collections"] = [e["nom"] for e in data.get("registry", [])]
+            st.success("Collections chargées !")
         except Exception as e:
             st.error(f"Impossible de joindre l'API : {e}")
 

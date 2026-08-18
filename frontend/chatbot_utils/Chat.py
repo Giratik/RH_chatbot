@@ -1,52 +1,26 @@
-#plugins/Chat.py 
-
+#chatbot_utils/Chat.py
 
 import re
 import streamlit as st
-from plugins import APIclient as api
+from plugins import wrapper_API as api
 import os
+from utility.session_state_central_rh import SK
+
 CONTEXT_SIZE = int(os.environ.get("CONTEXT_SIZE", 22000))
+DEFAULT_LLM = os.environ.get("DEFAULT_LLM", "gemma4:e4b")
+
 
 def _render_sources(citations: list[str]) -> None:
-    """
-    Affiche les sources citées dans un expander sous la réponse.
-    Fonction utilitaire pour afficher les références des documents RH.
-
-    Args:
-        citations: Liste des citations à afficher
-    """
     if not citations:
         return
     with st.expander(f"📚 Sources citées ({len(citations)})", expanded=False):
         for src in citations:
             st.markdown(f"- 📄 {src}")
 
+
 def render_chat(cfg: dict) -> None:
-    """
-    Affiche la colonne de chat et exécute le pipeline RAG à chaque message.
-    Fonction principale pour le chatbot RH spécialisé.
-
-    Args:
-        cfg: Dictionnaire de configuration RAG contenant :
-             - collection: Nom de la collection ChromaDB
-             - model: Modèle LLM à utiliser
-             - doc_date_filter: Filtre par date de document
-             - n_results: Nombre de chunks à récupérer
-             - seuil: Seuil de distance pour la pertinence
-             - use_hyde: Utilisation de l'hypothèse de réponse
-             - use_expansion: Expansion de requête avec synonymes
-             - alpha: Équilibre entre recherche vectorielle et BM25
-
-    Pipeline RAG complet :
-    1. Réécriture contextuelle de la requête
-    2. Recherche hybride dans les documents RH
-    3. Génération streamée de la réponse
-    4. Extraction et affichage des sources citées
-    """
-    #st.markdown("### 💬 Conversation")
-
     # ── Historique affiché ────────────────────────────────────────────────────
-    for msg in st.session_state.messages:
+    for msg in st.session_state[SK.MESSAGES]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
             if msg.get("citations"):
@@ -55,7 +29,7 @@ def render_chat(cfg: dict) -> None:
     if not (prompt := st.chat_input("Posez votre question ici")):
         return
 
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state[SK.MESSAGES].append({"role": "user", "content": prompt})
 
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -65,7 +39,7 @@ def render_chat(cfg: dict) -> None:
         # ── 1. Réécriture contextuelle ────────────────────────────────────────
         history_for_rewrite = [
             {"role": m["role"], "content": m["content"]}
-            for m in st.session_state.messages[:-1]
+            for m in st.session_state[SK.MESSAGES][:-1]
         ]
         try:
             standalone_query = api.rewrite_query(
@@ -78,8 +52,6 @@ def render_chat(cfg: dict) -> None:
             st.error(f"Erreur lors de la réécriture : {e}")
             return
 
-        # Afficher le badge seulement si la reformulation apporte un vrai changement
-        # (on ignore la ponctuation, la casse et les espaces superflus)
         def _normalize(s: str) -> str:
             return re.sub(r"[^\w\s]", "", s.lower()).split()
 
@@ -119,12 +91,11 @@ def render_chat(cfg: dict) -> None:
                 )
                 context_str = "\n\n---\n\n".join(contexts)
 
-            st.session_state.last_chunks = detailed_chunks
+            st.session_state[SK.LAST_CHUNKS] = detailed_chunks
 
         # ── 3. Génération streamée ────────────────────────────────────────────
         placeholder = st.empty()
         full_response = ""
-        # On passe les chunks pour étiqueter le contexte par source
         system_prompt = api.build_system_prompt(context_str, detailed_chunks)
 
         try:
@@ -146,36 +117,30 @@ def render_chat(cfg: dict) -> None:
             st.error(f"Erreur lors de la génération : {e}")
             return
 
-# ── 4. Parse et affiche les sources citées ────────────────────────────
+        # ── 4. Parse et affiche les sources citées ────────────────────────────
         clean_response, raw_citations = api.extract_citations(full_response)
 
-        # On enrichit les citations avec les URLs provenant de detailed_chunks
         enriched_citations = []
         for citation in raw_citations:
             url_found = ""
             for chunk in detailed_chunks:
-                # Vérifie si le nom de la source correspond à la citation
                 if citation in chunk["source"] or chunk["source"] in citation:
-                    # Récupérer l'URL depuis les métadonnées du chunk
                     url_found = chunk.get("metadata", {}).get("source_url", "").strip()
                     if url_found:
                         break
-            
-            # Si une URL est trouvée, on la formate en lien Markdown cliquable
             if url_found:
                 enriched_citations.append(f"**{citation}** — [Aller au document]({url_found})")
             else:
                 enriched_citations.append(citation)
 
-        # Remplacer la réponse brute par la version sans balises dans le chat
         if enriched_citations:
             placeholder.markdown(clean_response)
 
         _render_sources(enriched_citations)
 
         # ── 5. Sauvegarde ─────────────────────────────────────────────────────
-        st.session_state.messages.append({
+        st.session_state[SK.MESSAGES].append({
             "role": "assistant",
             "content": clean_response,
-            "citations": enriched_citations, # On sauvegarde la version enrichie pour l'historique !
+            "citations": enriched_citations,
         })

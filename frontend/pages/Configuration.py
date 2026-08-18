@@ -1,163 +1,216 @@
-# frontend/pages/1_⚙️_Configuration.py
-
 import streamlit as st
-import datetime
-from plugins.APIclient import list_collections
+import requests
+import json
 
-st.set_page_config(page_title="Configuration RAG", page_icon="⚙️", layout="wide")
 
-# ─── FONCTION D'INITIALISATION ────────────────────────────────────────────────
-def init_session_state():
-    """Initialise les variables de session si elles n'existent pas encore."""
+# Assurez-vous d'importer votre fonction client
+from plugins.wrapper_API import get_registry_collection
+
+def obtenir_description_collections_dynamique() -> str:
+    """
+    Récupère dynamiquement les noms et descriptions des collections
+    depuis la collection '_registry' de Qdrant via l'API backend.
+    """
+    try:
+        response = get_registry_collection()
+        registry_entries = response.get("registry", [])
+        collections_dispos = []
+        for entry in registry_entries:
+            if entry.get("nom") and entry.get("description"):
+                collections_dispos.append({
+                    "nom": entry["nom"],
+                    "description": entry["description"]
+                })
+
+        # Si le registre est vide, utiliser des valeurs par défaut
+        if not collections_dispos:
+            return "Nom de la collection dans laquelle chercher. (Attention: aucune collection disponible dans le registre)."
+
+        # Construction de la chaîne de texte détaillée pour le LLM
+        texte_description = "Nom de la collection dans laquelle chercher. Voici les choix obligatoires :\n"
+        for col in collections_dispos:
+            texte_description += f"- '{col['nom']}' : à utiliser pour des recherches concernant {col['description']}.\n"
+
+        return texte_description
+
+    except Exception as e:
+        print(f"Erreur lors de la récupération du registre: {str(e)}")
+        # Fallback de sécurité générique en cas d'erreur de connexion à Qdrant
+        return (
+            "Erreur. qdrant est injoinable"
+        )
+
+def build_qdrant_tools():
+    # On génère la description dynamique
+    description_dynamique = obtenir_description_collections_dynamique()
     
-    # 1. Date automatique pour le prompt
-    if "system_prompt" not in st.session_state:
-        mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", 
-                   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
-        now = datetime.datetime.now()
-        date_actuelle = f"{mois_fr[now.month - 1]} {now.year}"
-        
-        st.session_state.system_prompt = f"""Tu es un assistant IA expert, concis et professionnel.
-Ta mission est de répondre à la question de l'utilisateur en utilisant UNIQUEMENT le contexte fourni ci-dessous.
-Si la réponse n'est pas dans le contexte, dis poliment "Je ne trouve pas cette information dans les documents fournis", et n'invente rien.
-Réponds en français.
+    # On insère cette description dans le schéma
+    outils = [
+        {
+            "type": "function",
+            "function": {
+                "name": "rechercher_dans_qdrant",
+                "description": "Recherche des informations dans la base de données de l'entreprise.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "collection_name": {
+                            "type": "string",
+                            "description": description_dynamique # ⬅️ INJECTION ICI
+                        },
+                        "query": {
+                            "type": "string",
+                            "description": "La requête ou les mots-clés optimisés pour la recherche."
+                        }
+                    },
+                    "required": ["collection_name", "query"]
+                }
+            }
+        }
+    ]
+    return outils
 
-RÈGLES IMPORTANTES :
-- Nous sommes en {date_actuelle}.
-- Les dates des documents sont indiquées entre crochets [Document du YYYY-MM-DD].
-- Si plusieurs documents traitent le même sujet avec des dates différentes, PRIORISE TOUJOURS le document le plus récent et considère les autres comme caduques."""
 
+st.set_page_config(page_title="Test Tool Calling", page_icon="🕵️‍♂️", layout="wide")
 
+st.title("🕵️‍♂️ Débogueur de Tool Calling (Connecté au vrai Backend)")
+st.markdown("Cette page teste le comportement du LLM et interroge **votre véritable base Qdrant** via votre route API `/rag/search`.")
 
-import re
+with st.sidebar:
+    st.header("⚙️ Configuration")
+    ollama_url = st.text_input("URL Ollama", value="http://10.75.12.5:11434", help="L'adresse de votre serveur Ollama.")
+    backend_url = st.text_input("URL Backend API", value="http://10.75.12.5:8000", help="L'adresse de votre backend FastAPI.")
+    modele = st.text_input("Modèle", value="gemma4:e4b")
 
-def set_rag_stats():
-    # J'assume que list_collections() est appelée correctement ici, 
-    # potentiellement en lui passant ton client ChromaDB si nécessaire.
-    collections_disponibles = list_collections()
+# Définition de l'outil par défaut
+default_tools = build_qdrant_tools()
+#st.write("DEBUG tools:", default_tools)
+
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("1. Le schéma de l'outil (Tools)")
+    tools_str = st.text_area("Modifiez la description pour tester comment le LLM réagit :", 
+                             value=json.dumps(default_tools, indent=4, ensure_ascii=False), 
+                             height=350)
     
-    # Sécurité : au cas où ChromaDB est vide ou inaccessible
-    if not collections_disponibles:
-        s = "aucune_collection"
-    else:
-        # Recherche regex : on cherche "RH" (insensible à la casse grâce à re.IGNORECASE)
-        # c'est-à-dire que ça matchera "rh", "RH", "documents_RH", "Rh_test", etc.
-        collection_rh = next(
-            (c for c in collections_disponibles if re.search(r'collection_rh', c, re.IGNORECASE)), 
-            None # Valeur par défaut si rien n'est trouvé
-        )
-        
-        # Si la regex trouve une correspondance, on l'utilise.
-        # Sinon (fallback), on prend le premier élément de la liste pour ne pas faire planter l'app.
-        s = collection_rh if collection_rh else collections_disponibles[0]
-
-    return {
-        "collection": s,
-        "model": "gemma4:e4b",
-        "doc_date_filter": "",
-        "n_results": 250,
-        "seuil": 0.6,
-        "use_hyde": True,
-        "use_expansion": True,
-        "alpha": 0.5,
-    }
-
-
-# ─── RENDU DE LA PAGE ─────────────────────────────────────────────────────────
-def render_config_page():
-    init_session_state()
+    st.subheader("2. La question de l'utilisateur")
+    user_prompt = st.text_input("Posez une question :", value="Quel est l'adresse mail de Paul VIDOUZE ?")
     
-    st.title("⚙️ Configuration de la Session")
-    st.info("Les modifications effectuées ici s'appliquent uniquement à votre session en cours et seront réinitialisées au rechargement complet de l'application. Les paramètres de bases sont déja optimaux pour la récupération d'information")
+    tester = st.button("🚀 Tester le pipeline complet", use_container_width=True)
 
-    # -- Section 1 : Paramètres du RAG --
-    st.header("Paramètres du RAG (cfg)")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # --- NOUVEAU BLOC DYNAMIQUE POUR LES COLLECTIONS ---
-        try:
-            # 1. Récupération des collections via l'API frontend
-            collections_disponibles = list_collections()
+with col2:
+    st.subheader("3. Résultat et Exécution")
+    if tester:
+        if not user_prompt:
+            st.warning("Veuillez entrer une question.")
+        else:
+            try:
+                tools_json = json.loads(tools_str)
+            except json.JSONDecodeError:
+                st.error("Erreur de syntaxe JSON dans le schéma de l'outil.")
+                st.stop()
 
-            # Si la BDD est vide, on fournit un fallback
-            if not collections_disponibles:
-                collections_disponibles = ["aucune_collection_trouvee"]
-                st.warning("Aucune collection trouvée dans ChromaDB.")
+            payload_ollama = {
+                "model": modele,
+                "messages": [{"role": "user", "content": user_prompt}],
+                "tools": tools_json,
+                "stream": False
+            }
 
-        except Exception as e:
-            # Sécurité : Si l'API est inaccessible, on évite le crash de l'UI
-            st.error(f"Erreur de connexion à l'API RAG : {e}")
-            collections_disponibles = [st.session_state.rag_config["collection"]]
+            st.markdown("### 🔄 Étape 1 : Réflexion du LLM")
+            with st.spinner("Le LLM analyse la question..."):
+                try:
+                    # Appel Ollama pour vérifier s'il veut un outil
+                    response = requests.post(f"{ollama_url}/api/chat", json=payload_ollama)
+                    response.raise_for_status()
+                    resultat = response.json()
+                    
+                    message_assistant = resultat.get("message", {})
+                    tool_calls = message_assistant.get("tool_calls", [])
+                    
+                    if tool_calls:
+                        st.success("✅ Le LLM a décidé d'utiliser un outil !")
+                        for tc in tool_calls:
+                            nom_fonction = tc.get("function", {}).get("name")
+                            arguments = tc.get("function", {}).get("arguments", {})
+                            
+                            st.markdown(f"**🛠️ Outil appelé :** `{nom_fonction}`")
+                            st.markdown("**Arguments générés :**")
+                            st.json(arguments)
+                            
+                            if nom_fonction == "rechercher_dans_qdrant":
+                                col = arguments.get("collection_name", "INCONNUE")
+                                q = arguments.get("query", "INCONNUE")
+                                
+                                st.markdown("---")
+                                st.markdown("### 🔄 Étape 2 : Interrogation du vrai backend (Qdrant)")
+                                
+                                vrai_contexte = ""
+                                
+                                # Véritable appel à l'API backend /rag/search
+                                with st.spinner(f"Recherche de '{q}' dans '{col}'..."):
+                                    try:
+                                        payload_search = {
+                                            "collection_name": col,
+                                            "query": q,
+                                            "model": modele,
+                                            "n_results": 3,
+                                            "seuil": 0.8,
+                                            "alpha": 0.7
+                                        }
+                                        search_resp = requests.post(f"{backend_url}/rag/search", json=payload_search)
+                                        search_resp.raise_for_status()
+                                        search_data = search_resp.json()
+                                        
+                                        contexts = search_data.get("contexts", [])
+                                        
+                                        if contexts:
+                                            vrai_contexte = "\n\n".join(contexts)
+                                            st.success(f"✅ {len(contexts)} extraits récupérés depuis la base Qdrant !")
+                                            with st.expander("Voir les extraits trouvés (Contexte)"):
+                                                st.write(vrai_contexte)
+                                        else:
+                                            vrai_contexte = "Aucune information pertinente n'a été trouvée dans la base de données."
+                                            st.warning("⚠️ Qdrant n'a trouvé aucun résultat pertinent.")
+                                            
+                                    except requests.exceptions.ConnectionError:
+                                        st.error(f"Impossible de se connecter au backend sur {backend_url}. Le serveur FastAPI est-il lancé ?")
+                                        st.stop()
+                                    except Exception as e:
+                                        st.error(f"Erreur lors de la recherche backend : {e}")
+                                        st.stop()
+                                
+                                st.markdown("---")
+                                st.markdown("### 🔄 Étape 3 : Rédaction de la réponse finale")
+                                
+                                # Préparation du 2ème appel : on donne au LLM l'historique complet avec les vraies données
+                                messages_historique = [
+                                    {"role": "user", "content": user_prompt},
+                                    message_assistant,  # Le tool_call généré par le LLM
+                                    {"role": "tool", "content": vrai_contexte} # La vraie réponse de Qdrant
+                                ]
+                                
+                                payload_final = {
+                                    "model": modele,
+                                    "messages": messages_historique,
+                                    "stream": False
+                                }
+                                
+                                with st.spinner("Le LLM rédige la réponse finale en s'appuyant sur Qdrant..."):
+                                    resp2 = requests.post(f"{ollama_url}/api/chat", json=payload_final)
+                                    resp2.raise_for_status()
+                                    reponse_finale = resp2.json().get("message", {}).get("content", "")
+                                    
+                                    st.success("**💬 Réponse finale générée pour l'utilisateur :**")
+                                    st.write(reponse_finale)
 
-        # 2. Gestion de l'index par défaut du selectbox
-        collection_actuelle = st.session_state.rag_config["collection"]
-        try:
-            index_par_defaut = collections_disponibles.index(collection_actuelle)
-        except ValueError:
-            # Si la collection en session n'existe plus, on sélectionne la première de la liste
-            index_par_defaut = 0
-
-        # 3. Affichage du menu déroulant
-        st.session_state.rag_config["collection"] = st.selectbox(
-            "Collection ChromaDB", 
-            options=collections_disponibles,
-            index=index_par_defaut
-        )
-        st.session_state.rag_config["model"] = st.text_input(
-            "Modèle LLM", 
-            value=st.session_state.rag_config["model"]
-        )
-        st.session_state.rag_config["n_results"] = st.number_input(
-            "Nombre de chunks à récupérer (n_results)", 
-            min_value=1, 
-            max_value=1000, 
-            value=st.session_state.rag_config["n_results"]
-        )
-        st.session_state.rag_config["doc_date_filter"] = st.text_input(
-            "Filtre de date (doc_date_filter)", 
-            value=st.session_state.rag_config["doc_date_filter"],
-            help="Laissez vide pour ne pas filtrer par date."
-        )
-
-    with col2:
-        st.session_state.rag_config["seuil"] = st.slider(
-            "Seuil de pertinence", 
-            min_value=0.0, 
-            max_value=1.0, 
-            value=float(st.session_state.rag_config["seuil"]),
-            step=0.05
-        )
-        st.session_state.rag_config["alpha"] = st.slider(
-            "Équilibre Vectoriel / BM25 (alpha)", 
-            min_value=0.0, 
-            max_value=1.0, 
-            value=float(st.session_state.rag_config["alpha"]),
-            step=0.05
-        )
-        st.session_state.rag_config["use_hyde"] = st.toggle(
-            "Utiliser HyDE (Hypothetical Document Embeddings)", 
-            value=st.session_state.rag_config["use_hyde"]
-        )
-        st.session_state.rag_config["use_expansion"] = st.toggle(
-            "Expansion de requête (Synonymes)", 
-            value=st.session_state.rag_config["use_expansion"]
-        )
-
-    st.divider()
-
-    # -- Section 2 : Prompt Système --
-    st.header("Prompt Système")
-    st.session_state.system_prompt = st.text_area(
-        "Modifiez le comportement du modèle (Session locale)",
-        value=st.session_state.system_prompt,
-        height=350
-    )
-    
-    if st.button("Réinitialiser les paramètres par défaut", type="primary"):
-        st.session_state.pop("rag_config", None)
-        st.session_state.pop("system_prompt", None)
-        st.rerun()
-
-if __name__ == "__main__":
-    render_config_page()
+                    else:
+                        st.warning("❌ Le LLM n'a appelé aucun outil. Il a répondu directement avec ses connaissances.")
+                        st.success("**💬 Réponse du modèle :**")
+                        st.write(message_assistant.get("content", ""))
+                        
+                except requests.exceptions.ConnectionError:
+                    st.error(f"Impossible de se connecter à Ollama sur {ollama_url}. Vérifiez que le serveur est lancé.")
+                except Exception as e:
+                    st.error(f"Erreur lors de l'appel à Ollama : {e}")

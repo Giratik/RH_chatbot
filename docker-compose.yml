@@ -21,6 +21,7 @@ services:
       # ← Qdrant joignable via son nom de service sur qdrant_net
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
+      - CHATBOT_ROLE=RH
     deploy:
       resources:
         limits:

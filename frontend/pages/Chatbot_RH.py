@@ -2,14 +2,15 @@
 Chatbot_RH.py - Interface spécialisée RH
 """
 import streamlit as st
-from plugins.Sidebar import render_save_chat
-from plugins.Chat import render_chat
+from chatbot_utils.Sidebar import render_save_chat
+from chatbot_utils.Chat import render_chat
+from utility.session_state_central_rh import SK, get
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+#if "messages" not in st.session_state:
+#    st.session_state.messages = []
 
 # On récupère le cfg dynamiquement depuis le session_state
-cfg = st.session_state.rag_config
+cfg = get(SK.RAG_CONFIG)
 
 st.title("Chatbot spécialisé question RH")
 
