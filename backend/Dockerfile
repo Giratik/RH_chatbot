@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y \
 
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 
-# PyTorch reste nécessaire si vous utilisez des modèles d'embeddings via Transformers ou Langchain
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu118
 
 COPY requirements_backend.txt .

@@ -9,7 +9,6 @@ Description : Gère les interactions et les requêtes HTTP/API avec l'instance l
 import os
 import time
 import httpx
-#import ollama
 from ollama import Client
 
 #from metrics import llm_latency, llm_tokens_generated

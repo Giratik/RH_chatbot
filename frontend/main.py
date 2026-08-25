@@ -18,7 +18,7 @@ LOGO_PATH = "ressource/Eau_de_Paris_bleu.svg.png"
 
 
 # ─── PAGE CONFIG (Doit être le premier appel Streamlit) ───────────────
-st.set_page_config(page_title="RAG Integrated", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Chatbot RH", layout="wide")
 
 if os.path.exists(LOGO_PATH):
     st.logo(LOGO_PATH)
@@ -39,10 +39,11 @@ def main():
 
     # Construction dynamique de la navigation
     pages_visibles = [page_chat]
+    pages_visibles.append(page_changelog)
 
     # Ajout conditionnel de la page de config
     if st.session_state.is_dev == "yes":
-        pages_visibles.append(page_changelog)
+        
         pages_visibles.append(page_config)
         pages_visibles.append(page_test)
 

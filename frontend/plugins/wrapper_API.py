@@ -33,8 +33,7 @@ def _post(path: str, payload: dict, **kwargs) -> Any:
  
 # ─── Collections & modèles ────────────────────────────────────────────────────
  
-#def list_collections() -> List[str]:
-#    return _get("/rag/collections")["collections"]
+
 
 def list_collections_qdrant() -> List[str]:
     return _get("/rag/collections")["collections"]

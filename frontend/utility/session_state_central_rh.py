@@ -100,7 +100,7 @@ _DEFAULTS: dict[str, Any] = {
 
 # ─── Initialisation ───────────────────────────────────────────────────────────
 
-def init_session_state(llm_model: str, is_dev: bool = False) -> None:
+def init_session_state(llm_model: str, is_dev: str = "no") -> None:
     """À appeler une seule fois au démarrage (main.py)."""
 
     # Clés simples via _DEFAULTS
@@ -147,7 +147,7 @@ def reset_system_prompt() -> None:
     """Remet le prompt système à sa valeur par défaut."""
     st.session_state[SK.SYSTEM_PROMPT] = st.session_state[SK.DEFAULT_SYSTEM_PROMPT]
 
-def reset_all(llm_model, is_dev: bool = False) -> None:
+def reset_all(llm_model) -> None:
     """Réinitialise complètement la session frontend."""
     for key, default in _DEFAULTS.items():
         st.session_state[key] = default() if callable(default) else default
@@ -156,5 +156,4 @@ def reset_all(llm_model, is_dev: bool = False) -> None:
     st.session_state[SK.SYSTEM_PROMPT]        = prompt
     st.session_state[SK.DEFAULT_SYSTEM_PROMPT] = prompt
     st.session_state[SK.RAG_CONFIG]            = _build_rag_config(llm_model)
-    st.session_state[SK.IS_DEV]                = is_dev
     st.rerun()

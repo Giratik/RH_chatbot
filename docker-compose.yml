@@ -36,7 +36,7 @@ services:
               capabilities: [gpu]
     networks:
       - default
-      - qdrant_net   # ← rejoint le réseau Qdrant
+      - qdrant_net
 
   frontend:
     build:

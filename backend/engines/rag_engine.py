@@ -14,52 +14,13 @@ from typing import Any
 
 # ─── CLIENTS ──────────────────────────────────────────────────────────────────
 
-def make_qdrant_client() -> QdrantClient:
-    return QdrantClient(host=QDRANT_HOST, port=int(QDRANT_PORT))
-
-# The original Ollama client is replaced by the inferring_ollama helper.
-#class SimpleOllamaClient:
-#    def __init__(self, host: str = None):
-#        self.host = host
-#
-#    def chat(self, *, model: str, messages: list[dict], options: dict | None = None, stream: bool = False):
-#        temperature = 0.0
-#        if options and isinstance(options, dict):
-#            temperature = options.get("temperature", 0.0)
-#        dummy_stats = {"prompt_tokens": 0, "completion_tokens": 0, "duration": 0}
-#        
-#        if stream:
-#            return inferring_ollama(
-#                messages=messages,
-#                model=model,
-#                temperature=temperature,
-#                stream=True,
-#                stats_dict=dummy_stats,
-#                context_size=CONTEXT_SIZE,
-#            )
-#        else:
-#            full = "".join(
-#                chunk for chunk in inferring_ollama(
-#                    messages=messages,
-#                    model=model,
-#                    temperature=temperature,
-#                    stream=True,
-#                    stats_dict=dummy_stats,
-#                    context_size=CONTEXT_SIZE,
-#                )
-#            )
-#            return {"message": {"content": full}}
-#
-#    def list(self):
-#        import ollama as _ollama
-#        c = _ollama.Client(host=OLLAMA_HOST)
-#        return c.list()
-
 from services.ollama_client import client as ollama_sdk_client
 
 def make_ollama_client():
     return ollama_sdk_client  # le vrai Client SDK Ollama
 
+def make_qdrant_client() -> QdrantClient:
+    return QdrantClient(host=QDRANT_HOST, port=int(QDRANT_PORT))
 
 def embed(texts: list[str], ollama_host: str, model: str = EMBEDDING_MODEL) -> list[list[float]]:
     """Appel direct à l'API Ollama pour produire les embeddings."""

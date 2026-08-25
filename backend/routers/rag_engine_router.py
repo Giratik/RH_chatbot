@@ -22,14 +22,6 @@ from engines.rag_engine import (
 router = APIRouter(prefix="/rag", tags=["RAG Engine"])
 
 
-@router.get("/collections")
-def get_collections_endpoint():
-    client = make_qdrant_client()
-    try:
-        return {"collections": list_collections(client)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/collections_qdrant")
 def get_collections_endpoint():
     client = make_qdrant_client()
