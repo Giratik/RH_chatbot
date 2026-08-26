@@ -8,7 +8,7 @@ httpx==0.28.1
 ollama==0.6.1
 
 # Data Processing & Bases de données
-pandas
+pandas==2.3.3
 polars==1.22.0
 pyarrow==18.1.0
 openpyxl==3.1.5
