@@ -18,7 +18,7 @@ LOGO_PATH = "ressource/Eau_de_Paris_bleu.svg.png"
 
 
 # ─── PAGE CONFIG (Doit être le premier appel Streamlit) ───────────────
-st.set_page_config(page_title="Chatbot RH", layout="wide")
+st.set_page_config(page_title="Chatbot RH", icon=":material/smart_toy:", layout="wide")
 
 if os.path.exists(LOGO_PATH):
     st.logo(LOGO_PATH)
