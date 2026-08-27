@@ -32,8 +32,8 @@ def main():
     init_session_state(LLM_MODEL, is_dev=IS_DEV)
 
     # Déclaration des pages
-    page_chat = st.Page("pages/Chatbot_RH.py", title="Chat RH", icon="💬", default=True)
-    page_changelog = st.Page("pages/Changelog.py", title="Changelog", icon="📝")
+    page_chat = st.Page("pages/Chatbot_RH.py", title="Chat RH", icon=":material/chat:", default=True)
+    page_changelog = st.Page("pages/Changelog.py", title="Changelog", icon=":material/description:")
     page_config = st.Page("pages/Configuration.py", title="Configuration", icon="⚙️")
     page_test = st.Page("pages/test_retrieval.py", title="test rag")
 
