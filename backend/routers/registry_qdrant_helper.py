@@ -8,6 +8,8 @@ REGISTRY_COLLECTION = "_registry"
 
 def ensure_registry(qdrant_client: QdrantClient) -> None:
     """Crée la collection _registry si elle n'existe pas."""
+    # Le registre est créé à la demande pour que les endpoints puissent être
+    # utilisés sur une instance Qdrant fraîchement installée.
     existing = [c.name for c in qdrant_client.get_collections().collections]
     if REGISTRY_COLLECTION not in existing:
         qdrant_client.create_collection(
@@ -27,6 +29,9 @@ def list_registry(qdrant_client: QdrantClient) -> list[dict]:
     ensure_registry(qdrant_client)
     records = []
     offset = None
+
+    # scroll renvoie les points par lots ; on suit l'offset jusqu'à la fin
+    # pour ne pas limiter silencieusement le registre aux 200 premières entrées.
     while True:
         batch, offset = qdrant_client.scroll(
             collection_name=REGISTRY_COLLECTION,
@@ -47,6 +52,9 @@ def list_registry(qdrant_client: QdrantClient) -> list[dict]:
 def registry_for_tool_calling(client, role: str = "") -> list[dict]: #accès basé sur les rôles (RBAC)
     entries = list_registry(client)
     result = []
+
+    # Le filtrage est effectué côté backend : le frontend et le LLM ne voient
+    # que les collections actives autorisées pour le rôle courant.
     for e in entries:
         if not e.get("active", True):
             continue

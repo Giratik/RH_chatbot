@@ -274,6 +274,21 @@ Il combine :
 
 L'idée est de récupérer les chunks les plus pertinents puis de construire une réponse en respectant le contexte documentaire fourni.
 
+Dans ce type d'architecture RAG, le comptage des tokens est un élément important pour éviter de dépasser la fenêtre de contexte d'un modèle LLM. `tiktoken` est la bibliothèque de tokenisation développée par OpenAI ; elle permet de compter précisément le nombre de tokens d'un texte, de tronquer un prompt ou de calibrer le volume de contexte envoyé au modèle. Pour un chatbot RH, cela est très utile pour vérifier qu'un extrait de politique ou un ensemble de chunks reste compatible avec la limite de contexte du modèle avant génération d'une réponse.
+
+Un usage typique est le suivant :
+
+```python
+import tiktoken
+
+text = "Politique de télétravail : ..."
+encoding = tiktoken.get_encoding("cl100k_base")
+nb_tokens = len(encoding.encode(text))
+print(f"Nombre de tokens : {nb_tokens}")
+```
+
+Cela permet de mesurer les chunks, d'estimer la taille d'un prompt multimodal ou textuel, et d'ajuster la quantité de contexte pour éviter les erreurs de dépassement de fenêtre. Dans le projet, cette logique est particulièrement utile lorsqu'on assemble les documents les plus pertinents avant de les envoyer au modèle de réponse.
+
 ## Sécurité et contraintes de réponse
 
 Le système suit un principe strict :

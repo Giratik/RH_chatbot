@@ -3,7 +3,7 @@ import requests
 import json
 
 
-# Assurez-vous d'importer votre fonction client
+# Le wrapper centralise les appels HTTP vers l'API FastAPI.
 from plugins.wrapper_API import get_registry_collection
 
 def obtenir_description_collections_dynamique() -> str:
@@ -12,9 +12,13 @@ def obtenir_description_collections_dynamique() -> str:
     depuis la collection '_registry' de Qdrant via l'API backend.
     """
     try:
+        # Le registre contient les collections Qdrant que le chatbot peut utiliser.
         response = get_registry_collection()
         registry_entries = response.get("registry", [])
         collections_dispos = []
+
+        # On ne conserve que les entrées suffisamment renseignées pour être
+        # comprises par le modèle lors de l'appel d'outil.
         for entry in registry_entries:
             if entry.get("nom") and entry.get("description"):
                 collections_dispos.append({
@@ -26,7 +30,8 @@ def obtenir_description_collections_dynamique() -> str:
         if not collections_dispos:
             return "Nom de la collection dans laquelle chercher. (Attention: aucune collection disponible dans le registre)."
 
-        # Construction de la chaîne de texte détaillée pour le LLM
+        # Cette chaîne devient la description du paramètre collection_name.
+        # Le LLM dispose ainsi d'une liste à jour au lieu d'une liste codée en dur.
         texte_description = "Nom de la collection dans laquelle chercher. Voici les choix obligatoires :\n"
         for col in collections_dispos:
             texte_description += f"- '{col['nom']}' : à utiliser pour des recherches concernant {col['description']}.\n"
@@ -41,10 +46,12 @@ def obtenir_description_collections_dynamique() -> str:
         )
 
 def build_qdrant_tools():
-    # On génère la description dynamique
+    # On génère la description dynamique avant de construire le schéma envoyé
+    # à Ollama, afin que les choix proposés reflètent le registre actuel.
     description_dynamique = obtenir_description_collections_dynamique()
     
-    # On insère cette description dans le schéma
+    # Le schéma décrit à Ollama la fonction disponible et ses deux paramètres
+    # obligatoires : la collection à interroger et la requête utilisateur.
     outils = [
         {
             "type": "function",
@@ -56,7 +63,7 @@ def build_qdrant_tools():
                     "properties": {
                         "collection_name": {
                             "type": "string",
-                            "description": description_dynamique # ⬅️ INJECTION ICI
+                            "description": description_dynamique
                         },
                         "query": {
                             "type": "string",
@@ -82,7 +89,8 @@ with st.sidebar:
     backend_url = st.text_input("URL Backend API", value="http://10.75.12.5:8000", help="L'adresse de votre backend FastAPI.")
     modele = st.text_input("Modèle", value="gemma4:e4b")
 
-# Définition de l'outil par défaut
+# Le schéma initial est affiché dans la zone de texte et peut être modifié
+# pour tester l'influence des descriptions sur le choix du modèle.
 default_tools = build_qdrant_tools()
 #st.write("DEBUG tools:", default_tools)
 
@@ -105,6 +113,8 @@ with col2:
         if not user_prompt:
             st.warning("Veuillez entrer une question.")
         else:
+            # Le schéma est éditable : on valide donc le JSON avant tout appel
+            # réseau pour signaler immédiatement les erreurs de syntaxe.
             try:
                 tools_json = json.loads(tools_str)
             except json.JSONDecodeError:
@@ -121,7 +131,8 @@ with col2:
             st.markdown("### 🔄 Étape 1 : Réflexion du LLM")
             with st.spinner("Le LLM analyse la question..."):
                 try:
-                    # Appel Ollama pour vérifier s'il veut un outil
+                    # Premier appel : Ollama décide s'il doit appeler
+                    # rechercher_dans_qdrant et produit ses arguments.
                     response = requests.post(f"{ollama_url}/api/chat", json=payload_ollama)
                     response.raise_for_status()
                     resultat = response.json()
@@ -148,7 +159,8 @@ with col2:
                                 
                                 vrai_contexte = ""
                                 
-                                # Véritable appel à l'API backend /rag/search
+                                # Deuxième appel : le backend exécute la recherche
+                                # hybride dans la collection choisie par le modèle.
                                 with st.spinner(f"Recherche de '{q}' dans '{col}'..."):
                                     try:
                                         payload_search = {
@@ -184,11 +196,12 @@ with col2:
                                 st.markdown("---")
                                 st.markdown("### 🔄 Étape 3 : Rédaction de la réponse finale")
                                 
-                                # Préparation du 2ème appel : on donne au LLM l'historique complet avec les vraies données
+                                # On transmet au second appel l'échange initial,
+                                # l'appel d'outil et son résultat réel.
                                 messages_historique = [
                                     {"role": "user", "content": user_prompt},
-                                    message_assistant,  # Le tool_call généré par le LLM
-                                    {"role": "tool", "content": vrai_contexte} # La vraie réponse de Qdrant
+                                    message_assistant,
+                                    {"role": "tool", "content": vrai_contexte}
                                 ]
                                 
                                 payload_final = {
@@ -198,6 +211,8 @@ with col2:
                                 }
                                 
                                 with st.spinner("Le LLM rédige la réponse finale en s'appuyant sur Qdrant..."):
+                                    # Troisième étape : Ollama transforme le contexte
+                                    # récupéré en réponse lisible pour l'utilisateur.
                                     resp2 = requests.post(f"{ollama_url}/api/chat", json=payload_final)
                                     resp2.raise_for_status()
                                     reponse_finale = resp2.json().get("message", {}).get("content", "")

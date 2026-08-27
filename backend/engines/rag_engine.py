@@ -17,9 +17,13 @@ from typing import Any
 from services.ollama_client import client as ollama_sdk_client
 
 def make_ollama_client():
+    # Le client est créé une seule fois dans le module Ollama, puis partagé
+    # afin de réutiliser la configuration réseau et les connexions existantes.
     return ollama_sdk_client  # le vrai Client SDK Ollama
 
 def make_qdrant_client() -> QdrantClient:
+    # Qdrant est contacté par son hôte et son port, configurés via les variables
+    # d'environnement (voir core.config).
     return QdrantClient(host=QDRANT_HOST, port=int(QDRANT_PORT))
 
 def embed(texts: list[str], ollama_host: str, model: str = EMBEDDING_MODEL) -> list[list[float]]:
@@ -27,6 +31,8 @@ def embed(texts: list[str], ollama_host: str, model: str = EMBEDDING_MODEL) -> l
     vectors = []
     with httpx.Client(timeout=60) as client:
         for text in texts:
+            # Chaque texte est converti en vecteur ; ces vecteurs servent ensuite
+            # à rechercher les passages sémantiquement proches dans Qdrant.
             resp = client.post(
                 f"{ollama_host}/api/embeddings",
                 json={"model": model, "prompt": text},
@@ -37,6 +43,7 @@ def embed(texts: list[str], ollama_host: str, model: str = EMBEDDING_MODEL) -> l
 
 
 def list_collections(qdrant_client: QdrantClient) -> list[str]:
+    # Le tri rend la liste stable pour l'affichage et pour les tests.
     return sorted(c.name for c in qdrant_client.get_collections().collections)
 
 
@@ -65,6 +72,8 @@ def list_registry(qdrant_client: QdrantClient) -> list[dict]:
     records = []
     offset = None
     while True:
+        # Le scroll est paginé : on continue jusqu'à ce que Qdrant ne renvoie
+        # plus d'offset, pour ne pas ignorer les entrées au-delà du premier lot.
         batch, offset = qdrant_client.scroll(
             collection_name=REGISTRY_COLLECTION,
             limit=200,
@@ -98,6 +107,7 @@ def list_doc_dates(qdrant_client: QdrantClient, collection_name: str) -> list[st
     dates = set()
     offset = None
     while True:
+        # Un ensemble élimine les doublons avant le tri final des dates.
         records, offset = qdrant_client.scroll(
             collection_name=collection_name,
             limit=200,
@@ -137,6 +147,8 @@ def list_doc_dates(qdrant_client: QdrantClient, collection_name: str) -> list[st
 
 
 def list_generative_models(ollama_client: Any) -> list[str]:
+    # Ollama peut renvoyer un objet SDK ou un dictionnaire selon le client
+    # utilisé ; les deux formes sont normalisées ici.
     raw = ollama_client.list()
     models = raw.models if hasattr(raw, "models") else raw.get("models", [])
     result = []
@@ -156,6 +168,8 @@ def expand_query(ollama_client: Any, context_size: int, model: str, query: str) 
         f"Question : {query}"
     )
     try:
+        # Plusieurs reformulations permettent de retrouver des documents même
+        # si leur vocabulaire diffère de celui de la question originale.
         resp = ollama_client.chat(
             model=model,
             messages=[{"role": "user", "content": prompt}],
@@ -174,6 +188,8 @@ def hyde_query(ollama_client: Any, context_size: int, model: str, query: str) ->
         f"Question : {query}"
     )
     try:
+        # HyDE produit un faux passage de réponse : son embedding est souvent
+        # plus proche des documents qu'une question très courte.
         resp = ollama_client.chat(
             model=model,
             messages=[{"role": "user", "content": prompt}],
@@ -215,6 +231,8 @@ def retrieve_context_hybrid(
     if use_hyde:
         queries.append(hyde_query(ollama_client, context_size, model, query))
 
+    # On répartit le budget de résultats entre les différentes variantes,
+    # tout en conservant au moins cinq candidats par requête.
     per_query = max(5, n_results // len(queries))
 
     # ── Récupération vectorielle Qdrant ───────────────────────────────────────
@@ -222,6 +240,8 @@ def retrieve_context_hybrid(
     
     qdrant_filter = None
     if doc_date_filter:
+        # Le filtre est appliqué directement par Qdrant avant la recherche
+        # vectorielle afin d'exclure les documents d'une autre date.
         qdrant_filter = Filter(must=[FieldCondition(key="doc_date", match=MatchValue(value=doc_date_filter))])
 
     for q in queries:
@@ -236,6 +256,8 @@ def retrieve_context_hybrid(
             )
             
             for hit in result.points:
+                # La distance cosinus est reconstruite depuis le score Qdrant.
+                # Un identifiant déjà vu n'est conservé qu'une seule fois.
                 dist = max(0.0, 1.0 - hit.score)
                 if dist <= seuil and hit.id not in candidates:
                     candidates[hit.id] = {
@@ -257,6 +279,8 @@ def retrieve_context_hybrid(
     vecto_distances = [candidates[i]["vecto_distance"] for i in ids]
 
     # ── Scores normalisés ─────────────────────────────────────────────────────
+    # Les deux méthodes n'ayant pas la même échelle, chaque score est ramené
+    # relativement à son meilleur résultat avant de les combiner.
     vecto_scores = [1 - d / 2 for d in vecto_distances]
     max_v = max(vecto_scores) or 1
     vecto_scores_norm = [s / max_v for s in vecto_scores]
@@ -282,6 +306,8 @@ def retrieve_context_hybrid(
     ranked_with_rerank = [(*item, 0.0) for item in ranked]
 
     # ── Construction des résultats ────────────────────────────────────────────
+    # On prépare à la fois le contexte destiné au LLM, la liste synthétique
+    # des sources et les détails utilisés par l'interface de diagnostic.
     contexts: list[str] = []
     sources: list[tuple] = []
     detailed_chunks: list[dict] = []
@@ -289,6 +315,8 @@ def retrieve_context_hybrid(
 
     for hybrid_score, vecto_dist, bm25_score, doc, meta, rerank_score in ranked_with_rerank:
         if "source" in meta and "page" in meta:
+            # Les métadonnées PDF permettent d'afficher le fichier, la page et
+            # éventuellement un lien direct vers le document.
             source_name = f"📄 {meta['source']} (Page {meta['page']})"
             source_url = meta.get("source_url", "").strip()
             if source_url:
@@ -311,6 +339,8 @@ def retrieve_context_hybrid(
         contexts.append(context_line)
 
         if source_name not in seen_sources:
+            # Plusieurs chunks peuvent venir de la même source ; elle ne doit
+            # apparaître qu'une seule fois dans la liste des citations.
             sources.append((source_name, hybrid_score, vecto_dist, doc_date))
             seen_sources.add(source_name)
 
@@ -334,6 +364,8 @@ def retrieve_context_hybrid(
 from core.config import SYSTEM_PROMPT
 
 def build_system_prompt(context_str: str) -> str:
+    # Le contexte récupéré est injecté dans les instructions globales utilisées
+    # par le modèle lors de la génération de la réponse.
     return f""" {SYSTEM_PROMPT} 
     CONTEXTE :{context_str} """
 
@@ -347,7 +379,9 @@ def rewrite_query(
 ) -> str:
     if not chat_history:
         return query
- 
+
+    # Seuls les derniers échanges sont conservés pour limiter la taille du
+    # prompt tout en gardant le contexte nécessaire à la reformulation.
     MAX_TURNS = 4
     recent = chat_history[-(MAX_TURNS * 2):]
     history_str = "\n".join(
@@ -392,13 +426,17 @@ def stream_answer(
 ):
     MAX_HISTORY_TURNS = 6
     messages = [{"role": "system", "content": system_prompt}]
- 
+  
     if chat_history:
+        # Le tronquage évite que l'historique consomme toute la fenêtre de
+        # contexte au détriment de la question actuelle et des documents.
         trimmed = chat_history[-(MAX_HISTORY_TURNS * 2):]
         messages.extend(trimmed)
  
     messages.append({"role": "user", "content": user_question})
- 
+
+    # Ollama renvoie les fragments au fur et à mesure ; yield permet au routeur
+    # de les transmettre immédiatement à l'interface au lieu d'attendre la fin.
     for chunk in ollama_client.chat(
         model=model,
         messages=messages,
